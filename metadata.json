@@ -1,0 +1,6 @@
+{
+  "name": "វិភាគវិញ្ញាសាទី ០៩",
+  "description": "Interactive analytical dashboard for analyzing math exam points and time allocation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

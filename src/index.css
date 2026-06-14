@@ -1,0 +1,58 @@
+@import 'katex/dist/katex.min.css';
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Khmer OS Battambang", "Battambang", "Kantumruy Pro", ui-sans-serif, system-ui, sans-serif;
+  --font-moul: "Khmer OS Moul Light", "Moul", cursive;
+}
+
+body {
+    font-family: var(--font-sans);
+    background-color: #F8FAFC;
+    color: #0F172A;
+}
+
+.chart-container {
+    position: relative;
+    width: 100%;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+    height: 320px;
+    max-height: 400px;
+}
+@media (min-width: 768px) {
+    .chart-container {
+        height: 380px;
+    }
+}
+
+.markdown-p p {
+    margin-bottom: 0.5rem;
+}
+.markdown-p p:last-child {
+    margin-bottom: 0;
+}
+
+/* Print utilities */
+@media print {
+    .page-break-avoid {
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
+    
+    .markdown-container h1,
+    .markdown-container h2,
+    .markdown-container h3,
+    .markdown-container h4,
+    .markdown-container blockquote,
+    .markdown-container p,
+    .markdown-container ul,
+    .markdown-container ol,
+    .markdown-container li,
+    .markdown-container table,
+    .katex-display {
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
+}
