@@ -3,6 +3,8 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
+import { requireAuth, AuthRequest } from './src/middleware/auth.ts';
+import { getExamsHistory, saveExamHistory, deleteExamHistory, upsertExamsHistory } from './src/db/exams.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -158,6 +160,51 @@ Make sure to give a unique visually distinct color for each topic.`;
       res.status(500).json({ error: error.message || "Failed to analyze exam." });
     }
   });
+
+  app.get("/api/history", requireAuth, async (req: AuthRequest, res) => {
+    try {
+      if (!req.user) return res.status(401).json({ error: "Unauthorized" });
+      const history = await getExamsHistory(req.user.uid, req.user.email || '');
+      res.json(history);
+    } catch (error: any) {
+      console.error(error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/history", requireAuth, async (req: AuthRequest, res) => {
+    try {
+      if (!req.user) return res.status(401).json({ error: "Unauthorized" });
+      const saved = await saveExamHistory(req.user.uid, req.user.email || '', req.body);
+      res.json(saved);
+    } catch (error: any) {
+      console.error(error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/history/:id", requireAuth, async (req: AuthRequest, res) => {
+    try {
+      if (!req.user) return res.status(401).json({ error: "Unauthorized" });
+      await deleteExamHistory(req.user.uid, req.user.email || '', parseInt(req.params.id));
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error(error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.put("/api/history/upsert", requireAuth, async (req: AuthRequest, res) => {
+    try {
+      if (!req.user) return res.status(401).json({ error: "Unauthorized" });
+      const result = await upsertExamsHistory(req.user.uid, req.user.email || '', req.body);
+      res.json(result);
+    } catch (error: any) {
+      console.error(error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

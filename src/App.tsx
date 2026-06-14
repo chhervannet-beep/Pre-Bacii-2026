@@ -41,10 +41,27 @@ const CustomTooltip = ({ active, payload }: any) => {
   return null;
 };
 
-import { supabase } from './lib/supabase';
+import { auth, googleAuthProvider } from './lib/firebase';
+import { signInWithPopup, onAuthStateChanged, User } from 'firebase/auth';
 
 export default function App() {
   const [view, setView] = useState<'dashboard' | 'generator' | 'history'>('dashboard');
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (user) => {
+      setUser(user);
+    });
+    return unsub;
+  }, []);
+
+  const signIn = async () => {
+    try {
+      await signInWithPopup(auth, googleAuthProvider);
+    } catch (error) {
+      console.error("Sign in failed", error);
+    }
+  };
 
   const [title, setTitle] = useState("វិញ្ញាសាគណិតវិទ្យា កម្រិតពិបាក");
   const [level, setLevel] = useState("គណិតវិទ្យា (កម្រិតពិបាក - Advanced Level)");
@@ -55,26 +72,26 @@ export default function App() {
   const [history, setHistory] = useState<any[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
 
-  // Load history from Supabase (fallback to localStorage if not configured)
+  // Load history from API (fallback to localStorage if not configured)
   useEffect(() => {
     const loadHistory = async () => {
-      // Check if Supabase is configured
-      if (import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY) {
+      setIsLoadingHistory(true);
+      if (user) {
         try {
-          const { data, error } = await supabase
-            .from('exams_history')
-            .select('*')
-            .order('id', { ascending: false });
-            
-          if (error) {
-            console.error("Error fetching from Supabase:", error);
-            // Fallback to local storage if table doesn't exist or error
-            loadLocalHistory();
-          } else if (data) {
+          const token = await user.getIdToken();
+          const res = await fetch('/api/history', {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          if (res.ok) {
+            const data = await res.json();
             setHistory(data);
+          } else {
+            loadLocalHistory();
           }
         } catch (e) {
-          console.error("Supabase error:", e);
+          console.error("Fetch history error:", e);
           loadLocalHistory();
         }
       } else {
@@ -95,7 +112,7 @@ export default function App() {
     };
 
     loadHistory();
-  }, []);
+  }, [user]);
 
   const saveToHistory = async () => {
     const newItem = {
@@ -111,23 +128,28 @@ export default function App() {
       date: new Date().toISOString()
     };
 
-    if (import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY) {
+    if (user) {
       try {
-        const { error } = await supabase
-          .from('exams_history')
-          .insert([newItem]);
-          
-        if (error) {
-          console.error("Error saving to Supabase:", error);
-          alert("បរាជ័យក្នុងការរក្សាទុកទៅ Supabase។ (Failed to save to Supabase)");
-          // Fallback
+        const token = await user.getIdToken();
+        const res = await fetch('/api/history', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(newItem)
+        });
+        
+        if (!res.ok) {
+          console.error("Error saving to Cloud SQL");
+          alert("បរាជ័យក្នុងការរក្សាទុកទៅ Cloud SQL។ (Failed to save to Cloud SQL)");
           saveLocally(newItem);
         } else {
           setHistory(prev => [newItem, ...prev]);
-          alert('រក្សាទុកប្រវត្តិទៅ Supabase បានជោគជ័យ! (Saved to Supabase successfully)');
+          alert('រក្សាទុកប្រវត្តិទៅ Cloud SQL បានជោគជ័យ! (Saved to Cloud SQL successfully)');
         }
       } catch (e) {
-        console.error("Supabase save error:", e);
+        console.error("Cloud SQL save error:", e);
         saveLocally(newItem);
       }
     } else {
@@ -147,23 +169,25 @@ export default function App() {
   const deleteFromHistory = async (id: number) => {
     if (!confirm("តើលោកគ្រូពិតជាចង់លុបវិញ្ញាសានេះចេញពីប្រវត្តិមែនទេ?")) return;
 
-    if (import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY) {
+    if (user) {
       try {
-        const { error } = await supabase
-          .from('exams_history')
-          .delete()
-          .eq('id', id);
+        const token = await user.getIdToken();
+        const res = await fetch(`/api/history/${id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
         
-        if (error) {
-          console.error("Error deleting from Supabase:", error);
-          alert("បរាជ័យក្នុងការលុបពី Supabase។ (Failed to delete from Supabase)");
-          // Let's delete locally too just in case
+        if (!res.ok) {
+          console.error("Error deleting from Cloud SQL");
+          alert("បរាជ័យក្នុងការលុបពី Cloud SQL។ (Failed to delete from Cloud SQL)");
           deleteLocally(id);
         } else {
           setHistory(prev => prev.filter(h => h.id !== id));
         }
       } catch (e) {
-        console.error("Supabase delete error:", e);
+        console.error("Cloud SQL delete error:", e);
         deleteLocally(id);
       }
     } else {
@@ -214,12 +238,20 @@ export default function App() {
               return newUnique;
             });
             
-            if (import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY) {
+            if (user) {
               try {
-                 const { error } = await supabase.from('exams_history').upsert(parsed);
-                 if (error) console.error("Error upserting to Supabase:", error);
+                 const token = await user.getIdToken();
+                 const res = await fetch('/api/history/upsert', {
+                    method: 'PUT',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(parsed)
+                 });
+                 if (!res.ok) console.error("Error upserting to Cloud SQL:", res);
               } catch(e) {
-                 console.error("Supabase upsert exception:", e);
+                 console.error("Cloud SQL upsert exception:", e);
               }
             }
 
@@ -300,10 +332,18 @@ $$z_1 = \\sqrt{3} - i, z_2 = \\sqrt{3} + i$$`);
                 <p className="hidden md:block text-[10px] uppercase tracking-wider font-semibold text-slate-500">Mathematics Exam Analytical Dashboard</p>
             </div>
         </div>
-        <nav className="hidden md:flex items-center gap-6 text-[13px] font-moul text-slate-500 text-center">
+        <nav className="hidden md:flex items-center gap-4 text-[13px] font-moul text-slate-500 text-center">
             <button onClick={() => setView('dashboard')} className={`hover:text-cyan-500 transition-colors ${view === 'dashboard' ? 'text-pink-500' : ''}`}>ទិដ្ឋភាពទូទៅ</button>
             <button onClick={() => setView('history')} className={`hover:text-amber-500 transition-colors ${view === 'history' ? 'text-pink-500' : ''}`}>ប្រវត្តិ (History)</button>
             <button onClick={() => setView('generator')} className={`border border-pink-500 px-4 py-1.5 rounded transition-colors ${view === 'generator' ? 'bg-pink-500 text-white' : 'text-pink-500 hover:bg-pink-50'}`}>រៀបចំវិញ្ញាសា</button>
+            {!user ? (
+               <button onClick={signIn} className="text-white bg-slate-800 hover:bg-slate-700 px-4 py-1.5 rounded text-xs font-sans font-bold shadow-sm transition">Sign In</button>
+            ) : (
+               <div className="flex items-center gap-2 border-l border-slate-200 pl-4">
+                 {user.photoURL && <img src={user.photoURL} alt="Avatar" className="w-6 h-6 rounded-full" referrerPolicy="no-referrer" />}
+                 <span className="text-xs font-sans font-medium text-slate-700">{user.displayName || user.email}</span>
+               </div>
+            )}
         </nav>
       </header>
 
@@ -486,40 +526,22 @@ $$z_1 = \\sqrt{3} - i, z_2 = \\sqrt{3} + i$$`);
 
             {/* Dynamic Context Notice */}
             <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-4 flex gap-3 text-xs leading-relaxed items-start shadow-sm">
-               <span className="text-lg">{(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY) ? '✅' : '⚠️'}</span>
+               <span className="text-lg">{user ? '✅' : '⚠️'}</span>
                <div>
-                  {(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY) ? (
+                  {user ? (
                     <>
-                      <p className="font-bold text-green-900 mb-1">ទិន្នន័យត្រូវបានរក្សាទុកក្នុង Supabase ដោយសុវត្ថិភាព!</p>
+                      <p className="font-bold text-green-900 mb-1">ទិន្នន័យត្រូវបានរក្សាទុកក្នុង Cloud SQL ដោយសុវត្ថិភាព!</p>
                       <p>ឥឡូវនេះប្រវត្តិវិញ្ញាសាត្រូវបានរក្សាទុកនៅលើ Cloud ដោយមិនបាត់បង់ទេ ទោះបើកពីឧបករណ៍ណាក៏ដោយ។</p>
                     </>
                   ) : (
                     <div className="space-y-2">
                       <p className="font-bold text-amber-900 mb-1">កំពុងរក្សាទុកក្នុង Local Storage បណ្តោះអាសន្ន (Local Storage Mode)៖</p>
                       <p>
-                        ការរក្សាទុកប្រវត្តិនេះប្រើប្រាស់ Browser Cache។ ទិន្នន័យអាចនឹងត្រូវបាត់បង់ប្រសិនបើអ្នកClear Browsing History ឬប្តូរឧបករណ៍។
+                        ការរក្សាទុកប្រវត្តិនេះប្រើប្រាស់ Browser Cache។ ទិន្នន័យអាចនឹងត្រូវបាត់បង់ប្រសិនបើអ្នក Clear Browsing History ឬប្តូរឧបករណ៍។
                       </p>
                       <p className="font-bold border-t border-amber-200 pt-2 mt-2">
-                        👉 ដើម្បីរក្សាទិន្នន័យលើដែនបរិយាកាស Cloud (Supabase):
+                        👉 សូម <button onClick={signIn} className="underline text-blue-600 font-bold hover:text-blue-800">Sign In (ចូលប្រើ)</button> ដើម្បីរក្សាទិន្នន័យជាមួយប្រព័ន្ធ Cloud SQL របស់យើងដោយស្វ័យប្រវត្តិ។
                       </p>
-                      <ol className="list-decimal pl-5 space-y-1">
-                        <li>បញ្ចូល <strong>VITE_SUPABASE_URL</strong> និង <strong>VITE_SUPABASE_ANON_KEY</strong> នៅក្នុងផ្ទាំង <span className="underline">Secrets</span> នៃ AI Studio</li>
-                        <li>បង្កើតតារាង (Table) ក្នុង Supabase ជាមួយនឹងឈ្មោះ <strong>`exams_history`</strong> និងកូដ SQL ខាងក្រោម៖</li>
-                      </ol>
-                      <pre className="mt-2 bg-amber-100/50 p-3 rounded-md text-slate-800 text-[10px] overflow-auto select-all border border-amber-200">
-{`CREATE TABLE exams_history (
-  id bigint PRIMARY KEY,
-  title text,
-  level text,
-  subject text,
-  duration text,
-  score text,
-  "examContent" text,
-  "solutionContent" text,
-  data jsonb,
-  date text
-);`}
-                      </pre>
                     </div>
                   )}
                </div>
