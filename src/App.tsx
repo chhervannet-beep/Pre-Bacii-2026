@@ -41,6 +41,7 @@ const CustomTooltip = ({ active, payload }: any) => {
   return null;
 };
 
+import { supabase } from './lib/supabase';
 import { auth, googleAuthProvider } from './lib/firebase';
 import { signInWithPopup, onAuthStateChanged, User } from 'firebase/auth';
 
@@ -115,7 +116,29 @@ export default function App() {
     };
 
     const fetchFromSupabaseOrLocal = async (ur: any) => {
-      loadLocalHistory();
+      let sbLoaded = false;
+      if (supabase) {
+         try {
+           const { data, error } = await supabase.from('exams_history').select('*').eq('user_id', ur.uid).order('date', { ascending: false });
+           if (!error && data) {
+              const mapped = data.map(item => ({
+                 id: item.id,
+                 title: item.title,
+                 level: item.level,
+                 subject: item.subject,
+                 duration: item.duration,
+                 score: item.score,
+                 examContent: item.examContent,
+                 solutionContent: item.solutionContent,
+                 data: item.data,
+                 date: item.date
+              }));
+              setHistory(mapped);
+              sbLoaded = true;
+           }
+         } catch(e) { console.error(e); }
+      }
+      if (!sbLoaded) loadLocalHistory();
     };
 
     const loadLocalHistory = () => {
@@ -147,6 +170,30 @@ export default function App() {
     };
 
     if (user) {
+      if (supabase) {
+        try {
+          const { error } = await supabase.from('exams_history').upsert({
+            id: newItem.id,
+            user_id: user.uid,
+            email: user.email,
+            title: newItem.title,
+            level: newItem.level,
+            subject: newItem.subject,
+            duration: newItem.duration,
+            score: newItem.score,
+            examContent: newItem.examContent,
+            solutionContent: newItem.solutionContent,
+            data: newItem.data,
+            date: newItem.date
+          });
+          if (error) {
+            console.error("Supabase error:", error);
+          }
+        } catch (e) {
+          console.error("Error saving to Supabase:", e);
+        }
+      }
+
       try {
         const token = await user.getIdToken();
         const res = await fetch('/api/history', {
@@ -188,6 +235,17 @@ export default function App() {
     if (!confirm("តើលោកគ្រូពិតជាចង់លុបវិញ្ញាសានេះចេញពីប្រវត្តិមែនទេ?")) return;
 
     if (user) {
+      if (supabase) {
+        try {
+          const { error } = await supabase.from('exams_history').delete().eq('id', id);
+          if (error) {
+             console.error("Supabase delete error:", error);
+          }
+        } catch (e) {
+          console.error("Error deleting from Supabase", e);
+        }
+      }
+
       try {
         const token = await user.getIdToken();
         const res = await fetch(`/api/history/${id}`, {
@@ -257,6 +315,31 @@ export default function App() {
             });
             
             if (user) {
+              if (supabase) {
+                try {
+                  const sbData = parsed.map((item: any) => ({
+                    id: item.id,
+                    user_id: user.uid,
+                    email: user.email,
+                    title: item.title,
+                    level: item.level,
+                    subject: item.subject,
+                    duration: item.duration,
+                    score: item.score,
+                    examContent: item.examContent,
+                    solutionContent: item.solutionContent,
+                    data: item.data,
+                    date: item.date
+                  }));
+                  const { error } = await supabase.from('exams_history').upsert(sbData);
+                  if (error) {
+                     console.error(`Supabase Import Error: ${error.message}`);
+                  }
+                } catch(e) {
+                  console.error("Error upserting to Supabase:", e);
+                }
+              }
+
               try {
                  const token = await user.getIdToken();
                  const res = await fetch('/api/history/upsert', {
