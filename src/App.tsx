@@ -119,7 +119,7 @@ export default function App() {
       let sbLoaded = false;
       if (supabase) {
          try {
-           const { data, error } = await supabase.from('exams_history').select('*').eq('user_id', ur.uid).order('date', { ascending: false });
+           const { data, error } = await supabase.from('exams_history').select('*').order('date', { ascending: false });
            if (!error && data) {
               const mapped = data.map(item => ({
                  id: item.id,
@@ -174,8 +174,6 @@ export default function App() {
         try {
           const { error } = await supabase.from('exams_history').upsert({
             id: newItem.id,
-            user_id: user.uid,
-            email: user.email,
             title: newItem.title,
             level: newItem.level,
             subject: newItem.subject,
@@ -319,8 +317,6 @@ export default function App() {
                 try {
                   const sbData = parsed.map((item: any) => ({
                     id: item.id,
-                    user_id: user.uid,
-                    email: user.email,
                     title: item.title,
                     level: item.level,
                     subject: item.subject,
