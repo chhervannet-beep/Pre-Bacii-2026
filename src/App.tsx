@@ -41,6 +41,7 @@ const CustomTooltip = ({ active, payload }: any) => {
   return null;
 };
 
+import { supabase } from './lib/supabase';
 import { auth, googleAuthProvider } from './lib/firebase';
 import { signInWithPopup, onAuthStateChanged, User } from 'firebase/auth';
 
@@ -63,13 +64,10 @@ export default function App() {
       const host = window.location.hostname;
       if (error?.code === 'auth/unauthorized-domain') {
         alert(
-          `⚠️ ដែនមិនទាន់ត្រូវបានអនុញ្ញាតទេ! (Domain Authorization Issue)\n\n` +
-          `ដើម្បីឱ្យការចូលប្រើប្រាស់ (Sign In) ដំណើរការបានជោគជ័យលើដែន (Domain) នេះ សូមលោកគ្រូអ្នកគ្រូអនុវត្តតាមជំហានខាងក្រោម៖\n\n` +
-          `១. ចូលទៅកាន់ Firebase Console (https://console.firebase.google.com)\n` +
-          `២. ជ្រើសរើស Project របស់អ្នក -> ចូលទៅផ្នែក "Authentication" -> "Settings" -> "Authorized domains"\n` +
-          `៣. ចុចប៊ូតុង "Add domain" រួចវាយបញ្ចូល៖\n    👉 ${host}\n` +
-          `៤. រួចសាកល្បងចុច Sign In ម្តងទៀត!\n\n` +
-          `[English] Please add "${host}" to the "Authorized domains" in Firebase Console (Authentication > Settings) so that Google Sign-In works on Vercel.`
+          `⚠️ ការព្រមានអំពី Domain (Domain Authorization Issue)\n\n` +
+          `ការចូលប្រើប្រាស់មិនដំណើរការនៅលើដែន "${host}" ទេ។\n\n` +
+          `ដោយសារកម្មវិធីនេះប្រើប្រាស់ប្រព័ន្ធសុវត្ថិភាព និង Database ដែលរៀបចំដោយស្វ័យប្រវត្តិដោយ AI Studio ការបង្ហោះទៅកាន់ Vercel នឹងមិនអាចភ្ជាប់ Database បានទេ។\n\n` +
+          `💡 ដើម្បីឱ្យកម្មវិធីអាចដំណើរការបានពេញលេញ សូមសាកល្បងចុចប៊ូតុង "Share" ឬ "Deploy to Cloud Run" នៅលើ AI Studio ផ្ទាល់ (នៅផ្នែកខាងលើស្តាំដៃ) ដើម្បីទទួលបាន Link ផ្លូវការ។`
         );
       } else {
         alert(
@@ -105,16 +103,42 @@ export default function App() {
             const data = await res.json();
             setHistory(data);
           } else {
-            loadLocalHistory();
+            await fetchFromSupabaseOrLocal(user);
           }
         } catch (e) {
           console.error("Fetch history error:", e);
-          loadLocalHistory();
+          await fetchFromSupabaseOrLocal(user);
         }
       } else {
         loadLocalHistory();
       }
       setIsLoadingHistory(false);
+    };
+
+    const fetchFromSupabaseOrLocal = async (ur: any) => {
+      let sbLoaded = false;
+      if (supabase) {
+         try {
+           const { data, error } = await supabase.from('exam_history').select('*').eq('user_id', ur.uid).order('created_at', { ascending: false });
+           if (!error && data) {
+              const mapped = data.map(item => ({
+                 id: item.id,
+                 title: item.title,
+                 level: item.level,
+                 subject: item.subject,
+                 duration: item.duration,
+                 score: item.score,
+                 examContent: item.exam_content,
+                 solutionContent: item.solution_content,
+                 data: item.data,
+                 date: item.created_at
+              }));
+              setHistory(mapped);
+              sbLoaded = true;
+           }
+         } catch(e) { console.error(e); }
+      }
+      if (!sbLoaded) loadLocalHistory();
     };
 
     const loadLocalHistory = () => {
@@ -146,6 +170,27 @@ export default function App() {
     };
 
     if (user) {
+      if (supabase) {
+        try {
+          await supabase.from('exam_history').upsert({
+            id: newItem.id,
+            user_id: user.uid,
+            email: user.email,
+            title: newItem.title,
+            level: newItem.level,
+            subject: newItem.subject,
+            duration: newItem.duration,
+            score: newItem.score,
+            exam_content: newItem.examContent,
+            solution_content: newItem.solutionContent,
+            data: newItem.data,
+            created_at: newItem.date
+          });
+        } catch (e) {
+          console.error("Error saving to Supabase:", e);
+        }
+      }
+
       try {
         const token = await user.getIdToken();
         const res = await fetch('/api/history', {
@@ -187,6 +232,14 @@ export default function App() {
     if (!confirm("តើលោកគ្រូពិតជាចង់លុបវិញ្ញាសានេះចេញពីប្រវត្តិមែនទេ?")) return;
 
     if (user) {
+      if (supabase) {
+        try {
+          await supabase.from('exam_history').delete().eq('id', id);
+        } catch (e) {
+          console.error("Error deleting from Supabase", e);
+        }
+      }
+
       try {
         const token = await user.getIdToken();
         const res = await fetch(`/api/history/${id}`, {
@@ -256,6 +309,28 @@ export default function App() {
             });
             
             if (user) {
+              if (supabase) {
+                try {
+                  const sbData = parsed.map((item: any) => ({
+                    id: item.id,
+                    user_id: user.uid,
+                    email: user.email,
+                    title: item.title,
+                    level: item.level,
+                    subject: item.subject,
+                    duration: item.duration,
+                    score: item.score,
+                    exam_content: item.examContent,
+                    solution_content: item.solutionContent,
+                    data: item.data,
+                    created_at: item.date
+                  }));
+                  await supabase.from('exam_history').upsert(sbData);
+                } catch(e) {
+                  console.error("Error upserting to Supabase:", e);
+                }
+              }
+
               try {
                  const token = await user.getIdToken();
                  const res = await fetch('/api/history/upsert', {
@@ -547,7 +622,7 @@ $$z_1 = \\sqrt{3} - i, z_2 = \\sqrt{3} + i$$`);
                <div>
                   {user ? (
                     <>
-                      <p className="font-bold text-green-900 mb-1">ទិន្នន័យត្រូវបានរក្សាទុកក្នុង Cloud SQL ដោយសុវត្ថិភាព!</p>
+                      <p className="font-bold text-green-900 mb-1">ទិន្នន័យត្រូវបានរក្សាទុកក្នុង Cloud SQL & Supabase ដោយសុវត្ថិភាព!</p>
                       <p>ឥឡូវនេះប្រវត្តិវិញ្ញាសាត្រូវបានរក្សាទុកនៅលើ Cloud ដោយមិនបាត់បង់ទេ ទោះបើកពីឧបករណ៍ណាក៏ដោយ។</p>
                     </>
                   ) : (
@@ -557,7 +632,7 @@ $$z_1 = \\sqrt{3} - i, z_2 = \\sqrt{3} + i$$`);
                         ការរក្សាទុកប្រវត្តិនេះប្រើប្រាស់ Browser Cache។ ទិន្នន័យអាចនឹងត្រូវបាត់បង់ប្រសិនបើអ្នក Clear Browsing History ឬប្តូរឧបករណ៍។
                       </p>
                       <p className="font-bold border-t border-amber-200 pt-2 mt-2">
-                        👉 សូម <button onClick={signIn} className="underline text-blue-600 font-bold hover:text-blue-800">Sign In (ចូលប្រើ)</button> ដើម្បីរក្សាទិន្នន័យជាមួយប្រព័ន្ធ Cloud SQL របស់យើងដោយស្វ័យប្រវត្តិ។
+                        👉 សូម <button onClick={signIn} className="underline text-blue-600 font-bold hover:text-blue-800">Sign In (ចូលប្រើ)</button> ដើម្បីរក្សាទិន្នន័យជាមួយប្រព័ន្ធ Cloud SQL និង Supabase របស់យើងដោយស្វ័យប្រវត្តិ។
                       </p>
                     </div>
                   )}

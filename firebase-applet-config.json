@@ -1,9 +1,9 @@
 {
-  apiKey: "AIzaSyAuCDAnOJeWnFf4wMTGSap36b9P5ga_b0g",
-  authDomain: "pre-baii-2026.firebaseapp.com",
-  projectId: "pre-baii-2026",
-  storageBucket: "pre-baii-2026.firebasestorage.app",
-  messagingSenderId: "1016524902809",
-  appId: "1:1016524902809:web:252ceb0434923da8f50308",
-  measurementId: "G-82W19J6QM5"
-};
+  "projectId": "modular-env-25xj8",
+  "appId": "1:93509350718:web:b2a67287db4d046fe0286f",
+  "apiKey": "AIzaSyBMSLJQwihFuNtBm18pxgH8LvbvpSkH-cM",
+  "authDomain": "modular-env-25xj8.firebaseapp.com",
+  "storageBucket": "modular-env-25xj8.firebasestorage.app",
+  "messagingSenderId": "93509350718",
+  "measurementId": ""
+}
