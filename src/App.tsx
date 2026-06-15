@@ -119,7 +119,7 @@ export default function App() {
       let sbLoaded = false;
       if (supabase) {
          try {
-           const { data, error } = await supabase.from('exam_history').select('*').eq('user_id', ur.uid).order('created_at', { ascending: false });
+           const { data, error } = await supabase.from('exams_history').select('*').eq('user_id', ur.uid).order('created_at', { ascending: false });
            if (!error && data) {
               const mapped = data.map(item => ({
                  id: item.id,
@@ -172,7 +172,7 @@ export default function App() {
     if (user) {
       if (supabase) {
         try {
-          await supabase.from('exam_history').upsert({
+          const { error } = await supabase.from('exams_history').upsert({
             id: newItem.id,
             user_id: user.uid,
             email: user.email,
@@ -186,6 +186,10 @@ export default function App() {
             data: newItem.data,
             created_at: newItem.date
           });
+          if (error) {
+            console.error("Supabase error:", error);
+            alert(`បរាជ័យក្នុងការបញ្ជូនទិន្នន័យទៅកាន់ Supabase (Supabase Error)!\nមូលហេតុ: ${error.message}\nវត្ថុដែលអាចជាបញ្ហា: សូមពិនិត្យមើល RLS policies នៅលើ Table "exams_history" ឬបិទ RLS សម្រាប់សាកល្បង។`);
+          }
         } catch (e) {
           console.error("Error saving to Supabase:", e);
         }
@@ -234,7 +238,11 @@ export default function App() {
     if (user) {
       if (supabase) {
         try {
-          await supabase.from('exam_history').delete().eq('id', id);
+          const { error } = await supabase.from('exams_history').delete().eq('id', id);
+          if (error) {
+             console.error("Supabase delete error:", error);
+             alert(`បរាជ័យក្នុងការលុបទិន្នន័យពី Supabase: ${error.message}`);
+          }
         } catch (e) {
           console.error("Error deleting from Supabase", e);
         }
@@ -325,7 +333,10 @@ export default function App() {
                     data: item.data,
                     created_at: item.date
                   }));
-                  await supabase.from('exam_history').upsert(sbData);
+                  const { error } = await supabase.from('exams_history').upsert(sbData);
+                  if (error) {
+                     alert(`Supabase Import Error: ${error.message}`);
+                  }
                 } catch(e) {
                   console.error("Error upserting to Supabase:", e);
                 }
