@@ -24,20 +24,19 @@ export async function saveExamHistory(uid: string, email: string, exam: any) {
     
   if (supabaseServer) {
     try {
-      await supabaseServer.from('exams_history').upsert({
+      const { error } = await supabaseServer.from('exams_history').upsert({
         id: exam.id || Date.now(),
-        user_id: uid,
-        email: email,
         title: exam.title,
         level: exam.level,
         subject: exam.subject,
         duration: exam.duration,
         score: exam.score,
-        exam_content: exam.examContent,
-        solution_content: exam.solutionContent,
+        examContent: exam.examContent,
+        solutionContent: exam.solutionContent,
         data: exam.data,
-        created_at: exam.date || new Date().toISOString()
+        date: exam.date || new Date().toISOString()
       });
+      if (error) console.error("Supabase insert error:", error);
     } catch (e) {
       console.error("Failed to sync save to Supabase:", e);
     }
@@ -77,19 +76,18 @@ export async function upsertExamsHistory(uid: string, email: string, exams: any[
     try {
       const sbData = validExams.map((exam: any) => ({
         id: exam.id,
-        user_id: uid,
-        email: email,
         title: exam.title,
         level: exam.level,
         subject: exam.subject,
         duration: exam.duration,
         score: exam.score,
-        exam_content: exam.examContent,
-        solution_content: exam.solutionContent,
+        examContent: exam.examContent,
+        solutionContent: exam.solutionContent,
         data: exam.data,
-        created_at: exam.date || new Date().toISOString()
+        date: exam.date || new Date().toISOString()
       }));
-      await supabaseServer.from('exams_history').upsert(sbData);
+      const { error } = await supabaseServer.from('exams_history').upsert(sbData);
+      if (error) console.error("Supabase upsert error:", error);
     } catch (e) {
       console.error("Failed to sync upsert to Supabase:", e);
     }
