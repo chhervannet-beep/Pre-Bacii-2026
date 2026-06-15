@@ -58,8 +58,25 @@ export default function App() {
   const signIn = async () => {
     try {
       await signInWithPopup(auth, googleAuthProvider);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Sign in failed", error);
+      const host = window.location.hostname;
+      if (error?.code === 'auth/unauthorized-domain') {
+        alert(
+          `⚠️ ដែនមិនទាន់ត្រូវបានអនុញ្ញាតទេ! (Domain Authorization Issue)\n\n` +
+          `ដើម្បីឱ្យការចូលប្រើប្រាស់ (Sign In) ដំណើរការបានជោគជ័យលើដែន (Domain) នេះ សូមលោកគ្រូអ្នកគ្រូអនុវត្តតាមជំហានខាងក្រោម៖\n\n` +
+          `១. ចូលទៅកាន់ Firebase Console (https://console.firebase.google.com)\n` +
+          `២. ជ្រើសរើស Project របស់អ្នក -> ចូលទៅផ្នែក "Authentication" -> "Settings" -> "Authorized domains"\n` +
+          `៣. ចុចប៊ូតុង "Add domain" រួចវាយបញ្ចូល៖\n    👉 ${host}\n` +
+          `៤. រួចសាកល្បងចុច Sign In ម្តងទៀត!\n\n` +
+          `[English] Please add "${host}" to the "Authorized domains" in Firebase Console (Authentication > Settings) so that Google Sign-In works on Vercel.`
+        );
+      } else {
+        alert(
+          `❌ ការចូលប្រើបានបរាជ័យ (Sign-In Failed):\n${error?.message || error}\n\n` +
+          `ប្រសិនបើលោកគ្រូអ្នកគ្រូទើបតែចូលប្រើប្រាស់លើកដំបូង សូមប្រាកដថាបានបន្ថែមដែន "${host}" ទៅក្នុង Authorized Domains នៅក្នុង Firebase Console (Authentication > Settings)។`
+        );
+      }
     }
   };
 
